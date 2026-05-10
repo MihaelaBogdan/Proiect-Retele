@@ -1,23 +1,23 @@
-# Distributed File Sharing System (Python Sockets)
+# Sistem Distribuit de Fisiere
 
 Un sistem profesional de partajare a fișierelor între clienți multipli, implementat în Python folosind Socket-uri și Multi-threading. Sistemul permite transferul de fișiere binare (imagini, arhive) și monitorizarea în timp real a directoarelor locale.
 
 ## Caracteristici principale
-- **Server Concurent**: Gestionează mai mulți clienți simultan folosind thread-uri.
-- **Autentificare**: Acces pe bază de Username și Parolă.
-- **Monitorizare Live**: Detectează automat adăugarea sau ștergerea fișierelor din folderul local.
-- **Transfer Binar**: Suportă orice tip de fișier (Imagini, ZIP, PDF, etc.) prin codificare Base64.
-- **Funcții Avansate**:
+- Server Concurent: Gestionează mai mulți clienți simultan folosind thread-uri.
+- Autentificare: Acces pe bază de Username și Parolă.
+- Monitorizare Live: Detectează automat adăugarea sau ștergerea fișierelor din folderul local.
+- Transfer Binar: Suportă orice tip de fișier (Imagini, ZIP, PDF, etc.) prin codificare Base64.
+- Funcții Avansate:
   - Descărcare imagini direct de pe Internet (via URL).
   - Creare de arhive ZIP selective direct din meniu.
   - Re-partajare automată a fișierelor descărcate.
 
 ## Tehnologii utilizate
-- **Limbaj**: Python 3.10+ (doar librării standard, zero dependențe externe).
-- **Infrastructură**: Docker, Docker Compose.
+- Limbaj: Python 3.10+ (doar librării standard, zero dependențe externe).
+- Infrastructură: Docker, Docker Compose.
 
 ## Structura Proiectului
-```text
+
 /proiect_retele
 ├── /server
 │   ├── main.py         # Logica centrală a serverului
