@@ -19,8 +19,11 @@ class Server:
 
     def recv_msg(self, sock):
         try:
-            h = sock.recv(4)
-            if not h: return None
+            h = b""
+            while len(h) < 4:
+                c = sock.recv(4 - len(h))
+                if not c: return None
+                h += c
             l = struct.unpack('!I', h)[0]
             p = b""
             while len(p) < l:
@@ -70,11 +73,22 @@ class Server:
                 elif t == "DOWNLOAD_REQ":
                     log.info(f"[{username}] CERE {d['filename']} de la {d['target_user']}")
                     target = d['target_user']
-                    if target in self.clients: self.send_msg(self.clients[target]['socket'], "UPLOAD_REQ", {"requester": username, "filename": d['filename']})
-                elif t == "FILE_DATA":
-                    log.info(f"[{username}] TRIMITE DATE pentru {d['filename']} catre {d['requester']}")
+                    if target in self.clients:
+                        if d['filename'] in self.clients[target]['files']:
+                            self.send_msg(self.clients[target]['socket'], "UPLOAD_REQ", {"requester": username, "filename": d['filename']})
+                        else:
+                            self.send_msg(sock, "ERROR", {"message": f"Utilizatorul '{target}' nu partajeaza fisierul '{d['filename']}'."})
+                    else:
+                        self.send_msg(sock, "ERROR", {"message": f"Utilizatorul '{target}' nu este conectat."})
+                elif t in ["FILE_CHUNK", "FILE_END"]:
+                    if t == "FILE_END": log.info(f"[{username}] A FINALIZAT transferul pentru {d['filename']} catre {d['requester']}")
                     req = d['requester']
-                    if req in self.clients: self.send_msg(self.clients[req]['socket'], "FILE_DATA", {"sender": username, "filename": d['filename'], "content": d['content']})
+                    if req in self.clients:
+                        self.send_msg(self.clients[req]['socket'], t, {
+                            "sender": username, 
+                            "filename": d['filename'], 
+                            "content": d.get('content', '')
+                        })
         finally: self.cleanup(username, sock)
 
     def broadcast(self, t, d, exclude):

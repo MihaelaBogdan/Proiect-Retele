@@ -12,9 +12,9 @@ class Client:
     def connect(self):
         try:
             self.sock.connect((self.host, 5000))
-            print("\n=== SISTEM PARTAJARE PROFESIONAL ===")
-            self.username = input("Username: ")
-            self.password = input("Parola: ")
+            print("\n=== SISTEM PARTAJARE ===")
+            self.username = input("Username: ").strip().replace('\u200b', '').replace('\ufeff', '')
+            self.password = input("Parola: ").strip()
             self.shared_dir = f"shared_{self.username}"
             if not os.path.exists(self.shared_dir): os.makedirs(self.shared_dir)
             self.local_files = set(self.get_local_files())
@@ -36,12 +36,17 @@ class Client:
 
     def recv_msg(self):
         try:
-            h = self.sock.recv(4)
-            if not h: return None
+            h = b""
+            while len(h) < 4:
+                c = self.sock.recv(4 - len(h))
+                if not c: return None
+                h += c
             l = struct.unpack('!I', h)[0]
             p = b""
             while len(p) < l:
-                c = self.sock.recv(l - len(p)); p += c
+                c = self.sock.recv(l - len(p))
+                if not c: return None
+                p += c
             return json.loads(p.decode('utf-8'))
         except: return None
 
@@ -64,7 +69,8 @@ class Client:
                     self.global_files[d['username']].remove(d['filename'])
                 print(f"\n[*] {d['username']} a retras: {d['filename']}")
             elif t == "UPLOAD_REQ": self.handle_upload(d['requester'], d['filename'])
-            elif t == "FILE_DATA": self.save_file(d['sender'], d['filename'], d['content'])
+            elif t == "FILE_CHUNK": self.save_chunk(d['sender'], d['filename'], d['content'])
+            elif t == "FILE_END": print(f"\n[OK] Descarcare finalizata pentru '{d['filename']}' de la {d['sender']}.")
             elif t == "ERROR": print(f"\n[SERVER] {d['message']}")
         self.running = False
 
@@ -79,15 +85,18 @@ class Client:
     def handle_upload(self, req, fname):
         path = os.path.join(self.shared_dir, fname)
         if os.path.exists(path):
-            with open(path, "rb") as f: content = base64.b64encode(f.read()).decode('utf-8')
-            self.send_msg("FILE_DATA", {"requester": req, "filename": fname, "content": content})
+            with open(path, "rb") as f:
+                while True:
+                    chunk = f.read(64 * 1024)
+                    if not chunk: break
+                    content = base64.b64encode(chunk).decode('utf-8')
+                    self.send_msg("FILE_CHUNK", {"requester": req, "filename": fname, "content": content})
+            self.send_msg("FILE_END", {"requester": req, "filename": fname})
 
-    def save_file(self, sender, fname, content):
+    def save_chunk(self, sender, fname, content):
         nume_nou = f"download_{fname}"
         path = os.path.join(self.shared_dir, nume_nou)
-        with open(path, "wb") as f: f.write(base64.b64decode(content))
-        self.send_msg("FILE_ADDED", {"filename": nume_nou})
-        print(f"\n[OK] Descarcat '{fname}' de la {sender}. Salvat ca '{nume_nou}'.")
+        with open(path, "ab") as f: f.write(base64.b64decode(content))
 
     def menu(self):
         while self.running:
@@ -99,6 +108,8 @@ class Client:
                 for u, fs in self.global_files.items(): print(f" [RETEA] {u}: {fs}")
             elif c == "2":
                 u, f = input("De la cine: "), input("Fisier: ")
+                path = os.path.join(self.shared_dir, f"download_{f}")
+                if os.path.exists(path): os.remove(path)
                 self.send_msg("DOWNLOAD_REQ", {"target_user": u, "filename": f})
             elif c == "3":
                 self.running = False; self.sock.close(); sys.exit(0)

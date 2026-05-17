@@ -20,10 +20,10 @@ Un sistem profesional de partajare a fișierelor între clienți multipli, imple
 
 /proiect_retele
 ├── /server
-│   ├── main.py         # Logica centrală a serverului
+│   ├── server.py       # Logica centrală a serverului
 │   └── Dockerfile      # Configurație container server
 ├── /client
-│   └── main.py         # Aplicația client interactivă
+│   └── client.py       # Aplicația client interactivă
 ├── docker-compose.yml  # Orchestrare Docker
 └── README.md           # Documentație proiect
 ```
@@ -41,7 +41,7 @@ Serverul va fi activ pe portul `5000`.
 Deschide terminale noi pentru fiecare client și rulează:
 ```bash
 cd client
-python3 main.py
+python3 client.py
 ```
 *Fiecare client își va crea automat propriul folder de partajare în interiorul folderului `client` (ex: `client/shared_mihaela`).*
 
