@@ -1,4 +1,4 @@
-import socket, threading, json, struct, logging
+import socket, threading, json, struct, logging, os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [SISTEM] - %(message)s')
 log = logging.getLogger("server")
@@ -6,10 +6,24 @@ log = logging.getLogger("server")
 class Server:
     def __init__(self, host='0.0.0.0', port=5000):
         self.clients = {} 
-        self.registered_users = {} 
+        self.users_file = 'users.json'
+        self.registered_users = self.load_users() 
         self.lock = threading.Lock()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    def load_users(self):
+        if os.path.exists(self.users_file):
+            try:
+                with open(self.users_file, 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+
+    def save_users(self):
+        with open(self.users_file, 'w') as f:
+            json.dump(self.registered_users, f)
 
     def send_msg(self, sock, t, d=None):
         try:
@@ -40,14 +54,26 @@ class Server:
             msg = self.recv_msg(sock)
             if not msg or msg.get('type') != 'AUTH': return
             d = msg['data']
+            action = d.get('action', 'LOGIN')
             username, password, files = d['username'], d['password'], d['files']
             with self.lock:
-                if username in self.registered_users:
+                if action == "REGISTER":
+                    if username in self.registered_users:
+                        self.send_msg(sock, "ERROR", {"message": "Acest username exista deja! Alege altul pentru a te inregistra."})
+                        return
+                    else:
+                        self.registered_users[username] = password
+                        self.save_users()
+                        log.info(f"Utilizator nou inregistrat: {username}")
+                else:
+                    if username not in self.registered_users:
+                        self.send_msg(sock, "ERROR", {"message": "Utilizatorul nu exista. Inregistreaza-te mai intai."})
+                        return
                     if self.registered_users[username] != password:
                         log.warning(f"Parola gresita pentru '{username}'")
                         self.send_msg(sock, "ERROR", {"message": "Parola gresita"})
                         return
-                else: self.registered_users[username] = password
+
                 if username in self.clients:
                     self.send_msg(sock, "ERROR", {"message": "Utilizator deja online"})
                     return
@@ -107,7 +133,7 @@ class Server:
     def start(self):
         self.sock.bind(('0.0.0.0', 5000))
         self.sock.listen(10)
-        log.info("=== SERVER ACTIV PE PORTUL 5000 ===")
+        log.info("=== SERVER ACTIV ===")
         while True:
             s, a = self.sock.accept()
             threading.Thread(target=self.handle_client, args=(s, a), daemon=True).start()

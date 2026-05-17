@@ -1,5 +1,6 @@
 import socket, threading, json, struct, os, base64, time, sys
 import urllib.request, zipfile
+import getpass, hashlib
 
 class Client:
     def __init__(self, host='127.0.0.1'):
@@ -10,25 +11,52 @@ class Client:
         self.local_files = set()
 
     def connect(self):
-        try:
-            self.sock.connect((self.host, 5000))
-            print("\n=== SISTEM PARTAJARE ===")
-            self.username = input("Username: ").strip().replace('\u200b', '').replace('\ufeff', '')
-            self.password = input("Parola: ").strip()
-            self.shared_dir = f"shared_{self.username}"
-            if not os.path.exists(self.shared_dir): os.makedirs(self.shared_dir)
-            self.local_files = set(self.get_local_files())
-            self.send_msg("AUTH", {"username": self.username, "password": self.password, "files": list(self.local_files)})
-            msg = self.recv_msg()
-            if msg and msg['type'] == "ERROR":
-                print(f"\n[EROARE] {msg['data']['message']}"); self.sock.close(); return
-            if msg and msg['type'] == "SYNC_LIST":
-                self.global_files = msg['data'].get('files', {})
-                print("\n[OK] Conectat!")
-            threading.Thread(target=self.listen, daemon=True).start()
-            threading.Thread(target=self.monitor, daemon=True).start()
-            self.menu()
-        except Exception as e: print(f"Eroare: {e}")
+        while self.running:
+            try:
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.sock.connect((self.host, 5000))
+                print("\n=== SISTEM PARTAJARE  FISIERE===")
+                print("1. Logare (cont existent)")
+                print("2. Inregistrare (cont nou)")
+                print("3. Iesire")
+                act = input("Alege o optiune (1/2/3): ").strip()
+                
+                if act == "3":
+                    print("La revedere!")
+                    self.running = False
+                    sys.exit(0)
+                    
+                if act not in ["1", "2"]:
+                    print("Optiune invalida.")
+                    continue
+                    
+                action = "REGISTER" if act == "2" else "LOGIN"
+                
+                self.username = input("Username: ").strip().replace('\u200b', '').replace('\ufeff', '')
+                raw_password = getpass.getpass("Parola: ").strip()
+                self.password = hashlib.sha256(raw_password.encode()).hexdigest()
+                self.shared_dir = f"shared_{self.username}"
+                if not os.path.exists(self.shared_dir): os.makedirs(self.shared_dir)
+                self.local_files = set(self.get_local_files())
+                self.send_msg("AUTH", {"action": action, "username": self.username, "password": self.password, "files": list(self.local_files)})
+                msg = self.recv_msg()
+                
+                if msg and msg['type'] == "ERROR":
+                    print(f"\n[EROARE] {msg['data']['message']}")
+                    self.sock.close()
+                    continue
+                    
+                if msg and msg['type'] == "SYNC_LIST":
+                    self.global_files = msg['data'].get('files', {})
+                    print("\n[OK] Conectat!")
+                    
+                threading.Thread(target=self.listen, daemon=True).start()
+                threading.Thread(target=self.monitor, daemon=True).start()
+                self.menu()
+                break
+            except Exception as e: 
+                print(f"Eroare: {e}")
+                time.sleep(2)
 
     def send_msg(self, t, d=None):
         payload = json.dumps({"type": t, "data": d}).encode('utf-8')
